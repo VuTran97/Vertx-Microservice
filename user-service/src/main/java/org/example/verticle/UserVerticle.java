@@ -1,5 +1,6 @@
 package org.example.verticle;
 
+import com.example.demo.enums.EventAddress;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -9,7 +10,6 @@ import io.vertx.reactivex.core.Vertx;
 import io.vertx.reactivex.ext.mongo.MongoClient;
 import io.vertx.reactivex.ext.web.Router;
 import io.vertx.reactivex.ext.web.RoutingContext;
-import io.vertx.reactivex.ext.web.handler.BodyHandler;
 import org.example.entity.User;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
@@ -27,27 +27,29 @@ public class UserVerticle extends AbstractVerticle {
    * create instance for UserRepository & UserService
    */
   @Override
-  public void start() throws Exception {
+  public void start(){
     MongoClient client = createMongoClient(vertx);
     UserRepository userRepository = new UserRepository(client);
     userService = new UserServiceImpl(userRepository);
     Router router = Router.router(vertx);
-    //vertx.eventBus().consumer("/user", userRepository.getAllUser());
-    router.route().handler(BodyHandler.create());
-    router.post("/user").handler(this::insertOne);
-    router.get("/user").handler(this::getAllUser);
-    //router.get("/user/:id").handler(this::getUserById);
-    router.put("/user/:id").handler(this::updateOne);
-    router.delete("/user/:id").handler(this::deleteOne);
-    //router.get("/user/eventbus").handler(this::getAllUserByEventbus);
-    vertx.createHttpServer().requestHandler(router).listen(8000);
+    vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAllUserEventBus());
+    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insertUserEventBus());
+    vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getUserByIdEventBus());
+    vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.updateUserEventBus());
+    vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.deleteUserEventBus());
+//    router.route().handler(BodyHandler.create());
+//    router.post("/user").handler(this::insertOne);
+//    router.get("/user").handler(this::getAllUser);
+//    router.get("/user/:id").handler(this::getUserById);
+//    router.put("/user/:id").handler(this::updateOne);
+//    router.delete("/user/:id").handler(this::deleteOne);
+    router.get("/ss").handler(this::test);
+    vertx.createHttpServer().requestHandler(router).listen(8082);
   }
 
-//  private void getAllUserByEventbus(RoutingContext routingContext) {
-//    vertx.eventBus().<String>rxSend("/user", "").map(Message::body).subscribe(m -> {
-//      routingContext.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json").end(m);
-//    });
-//  }
+  private void test(RoutingContext routingContext) {
+    routingContext.response().end("8082");
+  }
 
 
   /**
@@ -77,7 +79,6 @@ public class UserVerticle extends AbstractVerticle {
 
   /**
    * handle get user by id
-   * @param routingContext
    */
   private void getUserById(RoutingContext routingContext) {
     String id = routingContext.pathParam("id");
