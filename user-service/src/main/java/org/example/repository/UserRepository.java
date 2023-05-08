@@ -1,21 +1,13 @@
 package org.example.repository;
 
-import io.reactivex.Completable;
-import io.reactivex.Maybe;
-import io.reactivex.Single;
 import io.vertx.core.Handler;
+import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
-import io.vertx.reactivex.core.eventbus.Message;
-import io.vertx.reactivex.ext.mongo.MongoClient;
-import org.example.entity.User;
+import io.vertx.ext.mongo.MongoClient;
 import org.example.verticle.UserVerticle;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
 
 public class UserRepository {
 
@@ -29,115 +21,85 @@ public class UserRepository {
         this.mongoClient = mongoClient;
     }
 
-    public Single<List<User>> getAll() {
-        final JsonObject query = new JsonObject();
-        return mongoClient.rxFind(COLLECTION_NAME, query)
-                .flatMap(result -> {
-                    List<User> users = new ArrayList<>();
-                    result.forEach(user -> users.add(new User(user)));
-                    return Single.just(users);
-                });
-    }
-
-    public Maybe<User>insert(User user){
-        return mongoClient.rxInsert(COLLECTION_NAME, JsonObject.mapFrom(user))
-                .flatMap(result -> {
-                    JsonObject jsonObject = new JsonObject().put("_id", result);
-                    User insertedUser = new User(jsonObject);
-                    return Maybe.just(insertedUser);
-                });
-    }
-
-    public Maybe<User> getById(String id){
-        JsonObject query = new JsonObject().put("_id", id);
-        return mongoClient.rxFindOne(COLLECTION_NAME, query, null)
-                .flatMap(result -> {
-                    User user = new User(result);
-                    return Maybe.just(user);
-                });
-    }
-
-    public Completable update(String id, User user){
-        JsonObject query = new JsonObject().put("_id", id);
-        return mongoClient.rxReplaceDocuments(COLLECTION_NAME, query, JsonObject.mapFrom(user))
-                .flatMapCompletable(result -> {
-                    if(result.getDocModified() == 1){
-                        return Completable.complete();
-                    }else{
-                        return Completable.error(new NoSuchElementException("No user with id: "+id));
-                    }
-                });
-    }
-
-    public Completable delete(String id){
-        JsonObject query = new JsonObject().put("_id", id);
-        return mongoClient.rxRemoveDocument(COLLECTION_NAME, query)
-                .flatMapCompletable(result -> {
-                    if(result.getRemovedCount() == 1){
-                        return Completable.complete();
-                    }else{
-                        return Completable.error(new NoSuchElementException("No user with id: "+id));
-                    }
-                });
-    }
-
     public Handler<Message<Object>> getAllUser() {
         logger.debug("Start get all user by event bus...");
-        return handler -> mongoClient.rxFind(COLLECTION_NAME, new JsonObject())
-                    .subscribe(jsonObjects -> {
-                        handler.rxReply(new JsonArray(jsonObjects).encodePrettily()).subscribe();
-                    },error -> {
-                        handler.fail(500, error.getMessage());
-                    });
+        return handler -> {
+            mongoClient.find(COLLECTION_NAME, new JsonObject(), result -> {
+                if(result.succeeded()){
+                    handler.reply(new JsonArray(result.result()).encodePrettily());
+                }else{
+                    handler.fail(500, "lookup failed");
+                }
+            });
+        };
     }
 
     public Handler<Message<JsonObject>> insertUser() {
         logger.debug("Start create user by event bus...");
         return handler -> {
-            JsonObject newUser = handler.body();
-            JsonObject query = new JsonObject().put("username", newUser.getString("username"));
-            mongoClient.rxFindOne(COLLECTION_NAME, query, null)
-                    .doOnSuccess(entries -> {
-                        if(entries != null){
-                            handler.fail(404, "user already exists");
+            JsonObject body = handler.body();
+            JsonObject query = new JsonObject().put("username", body.getString("username"));
+            mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
+                if(result.failed()){
+                    handler.fail(500, "lookup failed");
+                    return;
+                }
+                JsonObject user = result.result();
+                if(user != null){
+                    handler.fail(404, "user already exists");
+                }else{
+                    mongoClient.insert(COLLECTION_NAME, body, insert -> {
+                        if(insert.failed()){
+                            handler.fail(500, "lookup failed");
+                            return;
                         }
-                    }).doOnComplete(() -> {
-                        mongoClient.rxInsert(COLLECTION_NAME, newUser).doOnSuccess(insertedUser -> {
-                            newUser.put("_id", insertedUser);
-                            handler.rxReply(newUser.encode()).subscribe();
-                        }).doOnError(error -> handler.fail(500, error.getMessage()))
-                                .subscribe();
-                    })
-                    .subscribe();
+                        body.put("_id", insert.result());
+                        handler.reply(body.encode());
+                    });
+                }
+            });
         };
     }
 
-    public Handler<Message<Object>> getUserById() {
+    public Handler<Message<String>> getUserById() {
         return handler -> {
-            final Object body = handler.body();
-            final String id = body.toString();
-            mongoClient.rxFindOne(COLLECTION_NAME, new JsonObject().put("_id", id), null)
-                    .doOnSuccess(user -> {
-                        handler.rxReply(user.encode()).subscribe();
-                    })
-                    .doOnComplete(() -> handler.fail(404, "user with id: "+id + " not exists"))
-                    .subscribe();
+            String id = handler.body();
+            JsonObject query = new JsonObject().put("_id", id);
+            mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
+                if(result.failed()){
+                    handler.fail(500, "lookup failed");
+                    return;
+                }
+                JsonObject user = result.result();
+                if(user == null){
+                    handler.fail(404, "user with id: "+id+ " not exists");
+                }else{
+                    handler.reply(user.encode());
+                }
+            });
         };
     }
 
     public Handler<Message<JsonObject>> updateUser() {
         return handler -> {
-            JsonObject user = handler.body();
-            JsonObject query = new JsonObject().put("_id", user.getString("_id"));
-            mongoClient.rxFindOne(COLLECTION_NAME, query, null)
-                    .doOnSuccess(entries -> {
-                        mongoClient.rxReplaceDocuments(COLLECTION_NAME, query, user).
-                                doOnSuccess(result -> {
-                                    handler.rxReply(user.encode()).subscribe();
-                                }).doOnError(error ->  handler.fail(500, error.getMessage()))
-                                .subscribe();
-                    }).doOnComplete(() -> handler.fail(404, "user does not exists"))
-                    .subscribe();
+            JsonObject body = handler.body();
+            JsonObject query = new JsonObject().put("_id", body.getString("_id"));
+            mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
+                if(result.failed()){
+                    handler.fail(500, "lookup failed");
+                    return;
+                }
+                JsonObject user = result.result();
+                if(user == null){
+                    handler.fail(404, "user with id: "+body.getString("_id")+ " not exists");
+                }
+                mongoClient.replaceDocuments(COLLECTION_NAME, query, body, resultUpdate -> {
+                   if(result.failed()){
+                       handler.fail(500, "update failed");
+                   }
+                   handler.reply(body.encode());
+                });
+            });
         };
     }
 
@@ -145,15 +107,22 @@ public class UserRepository {
         return handler -> {
             String id = handler.body();
             JsonObject query = new JsonObject().put("_id", id);
-            mongoClient.rxFindOne(COLLECTION_NAME, query, null)
-                    .doOnSuccess(entries -> {
-                        mongoClient.rxRemoveDocument(COLLECTION_NAME, query).
-                                doOnSuccess(result -> {
-                                    handler.rxReply("delete success").subscribe();
-                                }).doOnError(error ->  handler.fail(500, error.getMessage()))
-                                .subscribe();
-                    }).doOnComplete(() -> handler.fail(404, "user with id: "+id + " not exists"))
-                    .subscribe();
+            mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
+                if(result.failed()){
+                    handler.fail(500, "lookup failed");
+                    return;
+                }
+                JsonObject user = result.result();
+                if(user == null){
+                    handler.fail(404, "user with id: "+id+ " not exists");
+                }
+                mongoClient.removeDocument(COLLECTION_NAME, query, resultDelete -> {
+                    if(result.failed()){
+                        handler.fail(500, "delete failed");
+                    }
+                    handler.reply("delete success");
+                });
+            });
         };
     }
 }
