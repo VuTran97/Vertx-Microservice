@@ -1,12 +1,12 @@
 package com.example.demo.verticle;
 
-import com.example.demo.base.BaseMicroserviceVerticle;
-import com.example.demo.discovery.ServiceDiscoveryPublish;
 import com.example.demo.enums.EventAddress;
+import com.example.demo.util.discovery.ServiceDiscoveryCommon;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
+import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -14,15 +14,16 @@ import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
-import io.vertx.servicediscovery.Record;
 import io.vertx.servicediscovery.ServiceDiscovery;
-import io.vertx.servicediscovery.types.HttpEndpoint;
 
-public class GatewayVerticle extends ServiceDiscoveryPublish {
+public class ApiRouteVerticle extends AbstractVerticle {
 
-    private static final Logger logger = LoggerFactory.getLogger(BaseMicroserviceVerticle.class);
+    private ServiceDiscovery discovery;
+
+    private static final Logger logger = LoggerFactory.getLogger(ApiRouteVerticle.class);
     @Override
     public void start(){
+        discovery = ServiceDiscovery.create(vertx);
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         router.get("/user").handler(this::getUsers);
@@ -30,11 +31,10 @@ public class GatewayVerticle extends ServiceDiscoveryPublish {
         router.get("/user/:id").handler(this::getOne);
         router.put("/user").handler(this::updateOne);
         router.delete("/user/:id").handler(this::deleteOne);
-        BaseMicroserviceVerticle baseMicroserviceVerticle = new BaseMicroserviceVerticle();
-        baseMicroserviceVerticle.publish("user-service", "localhost", 8081, "user");
+        ServiceDiscoveryCommon serviceDiscoveryCommon = new ServiceDiscoveryCommon();
+        serviceDiscoveryCommon.publish(discovery, "user-service", "localhost", 8081, "user");
         vertx.createHttpServer().requestHandler(router).listen(8081);
     }
-
 
     private void deleteOne(RoutingContext routingContext) {
         String id = routingContext.pathParam("id");
@@ -60,11 +60,10 @@ public class GatewayVerticle extends ServiceDiscoveryPublish {
         vertx.eventBus().send(EventAddress.GET_ALL_USER.name(), "", (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
     }
 
-
-
     private void defaultResponse(RoutingContext ctx, AsyncResult<Message<String>> responseHandler) {
         if (responseHandler.failed()) {
-            ctx.response().setStatusCode(500).end(responseHandler.cause().getMessage());
+            ReplyException cause = (ReplyException) responseHandler.cause();
+            ctx.response().setStatusCode(cause.failureCode()).end(responseHandler.cause().getMessage());
         } else {
             final Message<String> result = responseHandler.result();
             ctx.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json");
