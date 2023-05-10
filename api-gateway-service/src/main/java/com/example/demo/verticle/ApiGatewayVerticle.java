@@ -2,8 +2,11 @@ package com.example.demo.verticle;
 
 import com.example.demo.util.loadbalance.RoundRobin;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -17,6 +20,7 @@ import io.vertx.servicediscovery.ServiceReference;
 import org.example.verticle.UserVerticle;
 import org.example.verticle.UserVerticleTemp;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
@@ -55,9 +59,11 @@ public class ApiGatewayVerticle extends AbstractVerticle {
                 .filter(rc -> rc.getMetadata().getString("api.name").equals(api_name))
                 .findAny();
 
-
         if(record.isPresent()){
+            ServiceReference serviceReference = discovery.getReference(record.get());
+            WebClient webClient = serviceReference.getAs(WebClient.class);
             doDispatchHttpClient(routingContext, prefix, discovery.getReference(record.get()).get());
+            //doDispatchWebClient(routingContext, prefix, webClient);
         }else{
             routingContext.response().setStatusCode(400)
                     .putHeader("content-type", "application/json")
@@ -67,15 +73,39 @@ public class ApiGatewayVerticle extends AbstractVerticle {
 
 
     private void doDispatchHttpClient(RoutingContext routingContext, String newPath, HttpClient client) {
+        HttpClientRequest req =
+                client.request(routingContext.request().method(), newPath, res -> res.bodyHandler(body -> {
+                    routingContext.response().putHeader("content-type", "application/json; charset=utf-8")
+                                    .setStatusCode(res.statusCode()).end(body);
+                    ServiceDiscovery.releaseServiceObject(discovery,vertx);
+                }));
+        if(routingContext.getBody() == null){
+            req.end();
+        }
+        req.end(routingContext.getBody());
+    }
 
+    private void doDispatchWebClient(RoutingContext routingContext, String newPath, WebClient client) {
+        client.request(routingContext.request().method(), newPath)
+                .sendBuffer(routingContext.getBody(), res -> {
+                    if(res.succeeded()){
+                        routingContext.response()
+                                .putHeader("content-type", "application/json; charset=utf-8")
+                                .setStatusCode(res.result().statusCode())
+                                .end(res.result().body());
+                    }else{
+                        logger.error(res.cause().getMessage());
+                    }
+                });
     }
 
     private List<Record> getAllEndpoint(){
         AtomicReference<List<Record>> result = new AtomicReference<>();
-
         discovery.getRecords(r -> true, listAsyncResult -> {
             if(listAsyncResult.succeeded()){
                 result.set(listAsyncResult.result());
+            }else {
+                logger.error("An error occur when get service records: {0}", listAsyncResult.cause());
             }
         });
         return result.get();

@@ -14,19 +14,19 @@
         <dependency>
             <groupId>com.example.demo</groupId>
             <artifactId>common-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${buildVersion}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.example</groupId>
             <artifactId>user-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${buildVersion}</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.example.demo</groupId>
             <artifactId>api-service</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${buildVersion}</version>
             <scope>compile</scope>
         </dependency>
     </dependencies>
@@ -37,6 +37,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <main.class>io.vertx.core.Launcher</main.class>
         <main.verticle>com.example.demo.verticle.ApiGatewayVerticle</main.verticle>
+        <buildVersion>1.0.0-SNAPSHOT</buildVersion>
     </properties>
 
 </project>
