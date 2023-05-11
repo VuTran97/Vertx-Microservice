@@ -2,19 +2,15 @@ package org.example.verticle;
 
 import com.example.demo.enums.EventAddress;
 import com.example.demo.util.discovery.ServiceDiscoveryCommon;
-import io.reactivex.Completable;
-import io.reactivex.Single;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
-import io.vertx.core.http.HttpServer;
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.web.Router;
-import io.vertx.ext.web.RoutingContext;
 import io.vertx.servicediscovery.ServiceDiscovery;
+import org.example.eventbus.UserEventBus;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
 import org.example.service.impl.UserServiceImpl;
@@ -36,18 +32,19 @@ public class UserVerticle extends AbstractVerticle {
     discovery = ServiceDiscovery.create(vertx);
     MongoClient client = createMongoClient(vertx);
     UserRepository userRepository = new UserRepository(client);
-    userService = new UserServiceImpl(userRepository);
-    vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAllUserEventBus());
-    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insertUserEventBus());
-    vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getUserByIdEventBus());
-    vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.updateUserEventBus());
-    vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.deleteUserEventBus());
+    UserEventBus userEventBus = new UserEventBus(userRepository);
+    userService = new UserServiceImpl(userEventBus);
+    vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAll());
+    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insert());
+    vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getById());
+    vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.update());
+    vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.delete());
+
     Router router = Router.router(vertx);
     router.get("/user").handler(routingContext -> routingContext.response().end("User service 2"));
     ServiceDiscoveryCommon serviceDiscoveryCommon = new ServiceDiscoveryCommon();
     serviceDiscoveryCommon.publish(discovery, "user-service", "localhost", 8082, "user");
-    //vertx.createHttpServer().requestHandler(router).listen(8082);
-    Single.just(vertx.createHttpServer().requestHandler(router).listen(8082)).subscribe();
+    vertx.createHttpServer().requestHandler(router).listen(8082);
   }
 
   /**

@@ -26,7 +26,7 @@ public class ApiRouteVerticle extends AbstractVerticle {
         discovery = ServiceDiscovery.create(vertx);
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
-        router.get("/user").handler(this::getUsers);
+        router.get("/user").handler(this::getAll);
         router.post("/user").handler(this::insertOne);
         router.get("/user/:id").handler(this::getOne);
         router.put("/user").handler(this::updateOne);
@@ -56,7 +56,7 @@ public class ApiRouteVerticle extends AbstractVerticle {
         vertx.eventBus().send(EventAddress.INSERT_USER.name(), body, (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
     }
 
-    private void getUsers(RoutingContext routingContext) {
+    private void getAll(RoutingContext routingContext) {
         vertx.eventBus().send(EventAddress.GET_ALL_USER.name(), "", (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
     }
 
