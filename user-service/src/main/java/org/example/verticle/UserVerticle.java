@@ -2,6 +2,8 @@ package org.example.verticle;
 
 import com.example.demo.enums.EventAddress;
 import com.example.demo.util.discovery.ServiceDiscoveryCommon;
+import io.reactivex.Completable;
+import io.reactivex.Single;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
@@ -44,7 +46,16 @@ public class UserVerticle extends AbstractVerticle {
     router.get("/user").handler(routingContext -> routingContext.response().end("User service 2"));
     ServiceDiscoveryCommon serviceDiscoveryCommon = new ServiceDiscoveryCommon();
     serviceDiscoveryCommon.publish(discovery, "user-service", "localhost", 8082, "user");
-    vertx.createHttpServer().requestHandler(router).listen(8082);
+    Completable.create(completableEmitter -> {
+      vertx.createHttpServer().requestHandler(router).listen(8082, httpServerAsyncResult -> {
+        if(httpServerAsyncResult.succeeded()){
+          logger.info("Server listening on port 8082...");
+          completableEmitter.onComplete();
+        }else{
+          completableEmitter.onError(httpServerAsyncResult.cause());
+        }
+      });
+    }).subscribe();
   }
 
   /**

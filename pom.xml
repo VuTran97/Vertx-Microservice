@@ -13,6 +13,7 @@
       <module>api-service</module>
       <module>common-service</module>
     <module>api-gateway-service</module>
+      <module>version-service</module>
   </modules>
 
   <properties>

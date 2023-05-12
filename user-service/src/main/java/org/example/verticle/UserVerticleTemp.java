@@ -1,6 +1,7 @@
 package org.example.verticle;
 
 import com.example.demo.util.discovery.ServiceDiscoveryCommon;
+import io.reactivex.Completable;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -22,7 +23,16 @@ public class UserVerticleTemp extends AbstractVerticle {
         });
         ServiceDiscoveryCommon serviceDiscovery = new ServiceDiscoveryCommon();
         serviceDiscovery.publish(discovery, "user-service", "localhost", 8083, "user");
-        vertx.createHttpServer().requestHandler(router).listen(8083);
+        Completable.create(completableEmitter -> {
+            vertx.createHttpServer().requestHandler(router).listen(8083, httpServerAsyncResult -> {
+                if(httpServerAsyncResult.succeeded()){
+                    logger.info("Server listening on port 8083...");
+                    completableEmitter.onComplete();
+                }else{
+                    completableEmitter.onError(httpServerAsyncResult.cause());
+                }
+            });
+        }).subscribe();
     }
 
 }

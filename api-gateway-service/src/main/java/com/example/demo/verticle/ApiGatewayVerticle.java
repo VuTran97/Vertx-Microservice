@@ -1,9 +1,9 @@
 package com.example.demo.verticle;
 
 import com.example.demo.util.loadbalance.WeightRoundRobin;
+import io.reactivex.Completable;
+import io.reactivex.Single;
 import io.vertx.core.AbstractVerticle;
-import io.vertx.core.http.HttpClient;
-import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -17,7 +17,6 @@ import io.vertx.servicediscovery.ServiceReference;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 public class ApiGatewayVerticle extends AbstractVerticle {
@@ -32,65 +31,62 @@ public class ApiGatewayVerticle extends AbstractVerticle {
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         router.route("/api/*").handler(this::dispatchRequest);
-        vertx.createHttpServer().requestHandler(router).listen(8787);
+        Completable.create(completableEmitter -> {
+            vertx.createHttpServer().requestHandler(router).listen(8787, httpServerAsyncResult -> {
+                if(httpServerAsyncResult.succeeded()){
+                    logger.info("Server listening on port 8787...");
+                    completableEmitter.onComplete();
+                }else{
+                    completableEmitter.onError(httpServerAsyncResult.cause());
+                }
+            });
+        }).subscribe();
     }
 
     private void dispatchRequest(RoutingContext routingContext) {
         int initialUrl = 4; // /api
-        List<Record> records = getAllEndpoint();
-        String path = routingContext.request().uri();
-        if(path.length() <= initialUrl){
-            logger.info("path not found");
-            return;
-        }
-        String prefix = path.substring(initialUrl);
-        String api_name = (path.substring(5)
-                .split("/"))[0];
+        getAllEndpoint().subscribe(records -> {
+            String path = routingContext.request().uri();
+            if(path.length() <= initialUrl){
+                logger.info("path not found");
+                return;
+            }
+            String prefix = path.substring(initialUrl);
+            String api_name = (path.substring(5)
+                    .split("/"))[0];
 
-        List<Record> results = records.stream().filter(rc -> rc.getMetadata().getString("api.name") != null)
-                .filter(rc -> rc.getMetadata().getString("api.name").equals(api_name))
-                .collect(Collectors.toList());
+            List<Record> results = records.stream().filter(rc -> rc.getMetadata().getString("api.name") != null)
+                    .filter(rc -> rc.getMetadata().getString("api.name").equals(api_name))
+                    .collect(Collectors.toList());
 
-        List<String> ipList = results.stream().map(item -> item.getLocation().getString("host").concat(":").concat(String.valueOf(item.getLocation().getInteger("port"))))
-                .sorted().collect(Collectors.toList());
+            List<String> ipList = results.stream().map(item -> item.getLocation().getString("host").concat(":").concat(String.valueOf(item.getLocation().getInteger("port"))))
+                    .sorted().collect(Collectors.toList());
 
-        Optional<Record> record = Optional.empty();
-        if(ipList.size() > 0){
-            //round robin load balancer
-            //RoundRobin roundRobin = new RoundRobin();
-            //String server = roundRobin.roundRobin(ipList);
+            Optional<Record> record = Optional.empty();
+            if(ipList.size() > 0){
+                //round robin load balancer
+                //RoundRobin roundRobin = new RoundRobin();
+                //String server = roundRobin.roundRobin(ipList);
 
-            //weight round robin
-            WeightRoundRobin weightRoundRobin = new WeightRoundRobin();
-            String server = weightRoundRobin.weightRoundRobin(ipList);
-            record = results.stream().filter(item -> item.getLocation().getString("host").concat(":").concat(String.valueOf(item.getLocation().getInteger("port"))).equalsIgnoreCase(server)).findFirst();
-        }
+                //weight round robin
+                WeightRoundRobin weightRoundRobin = new WeightRoundRobin();
+                String server = weightRoundRobin.weightRoundRobin(ipList);
+                record = results.stream().filter(item -> item.getLocation().getString("host").concat(":").concat(String.valueOf(item.getLocation().getInteger("port"))).equalsIgnoreCase(server)).findFirst();
+            }
 
-        if(record.isPresent()){
-            ServiceReference serviceReference = discovery.getReference(record.get());
-            WebClient webClient = serviceReference.getAs(WebClient.class);
-            //doDispatchHttpClient(routingContext, prefix, discovery.getReference(record.get()).get());
-            doDispatchWebClient(routingContext, prefix, webClient);
-        }else{
-            routingContext.response().setStatusCode(400)
-                    .putHeader("content-type", "application/json")
-                    .end(new JsonObject().put("message", "not_found").encodePrettily());
-        }
+            if(record.isPresent()){
+                ServiceReference serviceReference = discovery.getReference(record.get());
+                WebClient webClient = serviceReference.getAs(WebClient.class);
+                doDispatchWebClient(routingContext, prefix, webClient);
+            }else{
+                routingContext.response().setStatusCode(400)
+                        .putHeader("content-type", "application/json")
+                        .end(new JsonObject().put("message", "not_found").encodePrettily());
+            }
+        }, error -> {
+            logger.error(error);
+        });
     }
-
-
-//    private void doDispatchHttpClient(RoutingContext routingContext, String newPath, HttpClient client) {
-//        HttpClientRequest req =
-//                client.request(routingContext.request().method(), newPath, res -> res.bodyHandler(body -> {
-//                    routingContext.response().putHeader("content-type", "application/json; charset=utf-8")
-//                                    .setStatusCode(res.statusCode()).end(body);
-//                    ServiceDiscovery.releaseServiceObject(discovery,vertx);
-//                }));
-//        if(routingContext.getBody() == null){
-//            req.end();
-//        }
-//        req.end(routingContext.getBody());
-//    }
 
     private void doDispatchWebClient(RoutingContext routingContext, String newPath, WebClient client) {
         client.request(routingContext.request().method(), newPath)
@@ -106,15 +102,15 @@ public class ApiGatewayVerticle extends AbstractVerticle {
                 });
     }
 
-    private List<Record> getAllEndpoint(){
-        AtomicReference<List<Record>> result = new AtomicReference<>();
-        discovery.getRecords(r -> true, listAsyncResult -> {
-            if(listAsyncResult.succeeded()){
-                result.set(listAsyncResult.result());
-            }else{
-                logger.error("An error occur when get service records: {0}", listAsyncResult.cause());
-            }
+    private Single<List<Record>> getAllEndpoint(){
+        return Single.create(singleEmitter -> {
+            discovery.getRecords(r -> true, listAsyncResult -> {
+                if(listAsyncResult.succeeded()){
+                    singleEmitter.onSuccess(listAsyncResult.result());
+                }else{
+                    singleEmitter.onError(listAsyncResult.cause());
+                }
+            });
         });
-        return result.get();
     }
 }
