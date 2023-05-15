@@ -1,6 +1,8 @@
 package org.example.service.impl;
 
+import io.reactivex.Single;
 import io.vertx.core.Handler;
+import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
@@ -21,28 +23,30 @@ public class UserServiceImpl implements UserService {
     }
 
   @Override
-  public Handler<Message<Object>> getAll() {
-    return userEventBus.getAll();
+  public Handler<Message<Object>> getAll(Vertx vertx) {
+    return userEventBus.getAll(vertx);
+  }
+
+
+
+  @Override
+  public Handler<Message<JsonObject>> insert(Vertx vertx) {
+    return userEventBus.insert(vertx);
   }
 
   @Override
-  public Handler<Message<JsonObject>> insert() {
-    return userEventBus.insert();
+  public Handler<Message<String>> getById(Vertx vertx) {
+    return userEventBus.getById(vertx);
   }
 
   @Override
-  public Handler<Message<String>> getById() {
-    return userEventBus.getById();
+  public Handler<Message<JsonObject>> update(Vertx vertx) {
+    return userEventBus.update(vertx);
   }
 
   @Override
-  public Handler<Message<JsonObject>> update() {
-    return userEventBus.update();
-  }
-
-  @Override
-  public Handler<Message<String>> delete() {
-    return userEventBus.delete();
+  public Handler<Message<String>> delete(Vertx vertx) {
+    return userEventBus.delete(vertx);
   }
 
 

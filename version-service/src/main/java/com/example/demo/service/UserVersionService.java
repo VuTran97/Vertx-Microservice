@@ -6,7 +6,11 @@ import io.vertx.core.json.JsonObject;
 
 public interface UserVersionService {
 
-    Handler<Message<Object>> getAll();
+    Handler<Message<String>> getAll();
 
     Handler<Message<JsonObject>> insert();
+
+    Handler<Message<String>> getByUserId();
+
+    Handler<Message<String>> deleteByUserId();
 }

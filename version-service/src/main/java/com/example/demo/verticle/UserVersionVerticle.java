@@ -1,5 +1,6 @@
 package com.example.demo.verticle;
 
+import com.example.demo.enums.EventAddress;
 import com.example.demo.eventbus.UserVersionEventBus;
 import com.example.demo.repository.UserVersionRepository;
 import com.example.demo.service.UserVersionService;
@@ -14,13 +15,14 @@ public class UserVersionVerticle extends AbstractVerticle {
 
     @Override
     public void start(Future<Void> startFuture) throws Exception {
-
         MongoClient mongoClient = createMongoClient(vertx);
         UserVersionRepository userVersionRepository = new UserVersionRepository(mongoClient);
         UserVersionEventBus userVersionEventBus = new UserVersionEventBus(userVersionRepository);
         UserVersionService userVersionService = new UserVersionServiceImpl(userVersionEventBus);
-        vertx.eventBus().consumer("insert-version", userVersionService.insert());
-        vertx.eventBus().consumer("getall-version", userVersionService.getAll());
+        vertx.eventBus().consumer(EventAddress.INSERT_USER_VERSION.name(), userVersionService.insert());
+        vertx.eventBus().consumer(EventAddress.GET_ALL_USER_VERSION.name(), userVersionService.getAll());
+        vertx.eventBus().consumer(EventAddress.GET_USER_VERSION_BY_USER_ID.name(), userVersionService.getByUserId());
+        vertx.eventBus().consumer(EventAddress.DELETE_VERSION_BY_USER_ID.name(), userVersionService.deleteByUserId());
     }
 
     private MongoClient createMongoClient(Vertx vertx){

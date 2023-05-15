@@ -16,12 +16,22 @@ public class UserVersionServiceImpl implements UserVersionService {
 
 
     @Override
-    public Handler<Message<Object>> getAll() {
+    public Handler<Message<String>> getAll() {
         return userVersionEventBus.getAll();
     }
 
     @Override
     public Handler<Message<JsonObject>> insert() {
         return userVersionEventBus.insert();
+    }
+
+    @Override
+    public Handler<Message<String>> getByUserId() {
+        return userVersionEventBus.getByUserId();
+    }
+
+    @Override
+    public Handler<Message<String>> deleteByUserId() {
+        return userVersionEventBus.delete();
     }
 }

@@ -38,9 +38,6 @@ public class ApiRouteVerticle extends AbstractVerticle {
         router.get("/user/:id").handler(this::getOne);
         router.put("/user").handler(this::updateOne);
         router.delete("/user/:id").handler(this::deleteOne);
-        //version route
-        router.get("/version").handler(this::getAllVersion);
-        router.post("/version").handler(this::insertVersion);
         router.route().failureHandler(routingContext -> {
             if(routingContext.failure() instanceof VerticleException){
                 VerticleException exception = (VerticleException) routingContext.failure();
@@ -72,13 +69,10 @@ public class ApiRouteVerticle extends AbstractVerticle {
         }).subscribe();
     }
 
-    private void getAllVersion(RoutingContext routingContext) {
-        vertx.eventBus().send("getall-version", "", (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
-    }
+    private void deleteVersion(RoutingContext routingContext) {
+        String userId = routingContext.pathParam("id");
+        vertx.eventBus().send(EventAddress.DELETE_VERSION_BY_USER_ID.name(), userId, (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
 
-    private void insertVersion(RoutingContext routingContext) {
-        JsonObject body = routingContext.getBodyAsJson();
-        vertx.eventBus().send("insert-version", body, (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
     }
 
     private void deleteOne(RoutingContext routingContext) {
@@ -106,12 +100,12 @@ public class ApiRouteVerticle extends AbstractVerticle {
     }
 
     private void defaultResponse(RoutingContext ctx, AsyncResult<Message<String>> responseHandler) {
+        ctx.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json");
         if (responseHandler.failed()) {
             ReplyException cause = (ReplyException) responseHandler.cause();
             ctx.fail(new VerticleException(cause, cause.failureCode()));
         } else {
             final Message<String> result = responseHandler.result();
-            ctx.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json");
             ctx.response().end(result.body());
         }
     }

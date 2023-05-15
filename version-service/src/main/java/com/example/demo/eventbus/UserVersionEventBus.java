@@ -14,10 +14,21 @@ public class UserVersionEventBus {
         this.userVersionRepository = userVersionRepository;
     }
 
-    public Handler<Message<Object>> getAll(){
+    public Handler<Message<String>> getAll(){
         return handler -> {
             userVersionRepository.getAll().subscribe(item -> {
-                handler.reply(new JsonArray(item).encodePrettily());
+                handler.reply(new JsonArray(item));
+            }, error -> {
+                handler.fail(400, error.getMessage());
+            });
+        };
+    }
+
+    public Handler<Message<String>> getByUserId(){
+        return handler -> {
+            String userId = handler.body();
+            userVersionRepository.getByUserId(userId).subscribe(item -> {
+                handler.reply(new JsonArray(item));
             }, error -> {
                 handler.fail(400, error.getMessage());
             });
@@ -29,6 +40,17 @@ public class UserVersionEventBus {
             JsonObject body = handler.body();
             userVersionRepository.insert(body).subscribe(item -> {
                 handler.reply(item.encodePrettily());
+            }, error -> {
+                handler.fail(400, error.getMessage());
+            });
+        };
+    }
+
+    public Handler<Message<String>> delete(){
+        return handler -> {
+            String userId = handler.body();
+            userVersionRepository.delete(userId).subscribe(() -> {
+                handler.reply("delete success");
             }, error -> {
                 handler.fail(400, error.getMessage());
             });

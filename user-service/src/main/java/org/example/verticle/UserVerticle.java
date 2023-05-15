@@ -36,11 +36,11 @@ public class UserVerticle extends AbstractVerticle {
     UserRepository userRepository = new UserRepository(client);
     UserEventBus userEventBus = new UserEventBus(userRepository);
     userService = new UserServiceImpl(userEventBus);
-    vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAll());
-    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insert());
-    vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getById());
-    vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.update());
-    vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.delete());
+    vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAll(vertx));
+    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insert(vertx));
+    vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getById(vertx));
+    vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.update(vertx));
+    vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.delete(vertx));
 
     Router router = Router.router(vertx);
     router.get("/user").handler(routingContext -> routingContext.response().end("User service 2"));

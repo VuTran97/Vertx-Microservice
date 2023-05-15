@@ -114,7 +114,7 @@ public class UserRepository {
                     completableEmitter.onError(new CustomException("user with id: "+id+ " not exists"));
                 }
                 mongoClient.removeDocument(COLLECTION_NAME, query, resultDelete -> {
-                    if(result.failed()){
+                    if(resultDelete.failed()){
                         completableEmitter.onError(new CustomException("An error occur when delete user"));
                     }
                     completableEmitter.onComplete();
