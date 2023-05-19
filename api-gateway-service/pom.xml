@@ -35,9 +35,10 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <main.class>io.vertx.core.Launcher</main.class>
-        <main.verticle>com.example.demo.verticle.ServerVerticle</main.verticle>
+        <main.class>com.example.demo.verticle.ApiGatewayApp</main.class>
+        <main.verticle>com.example.demo.verticle.ApiGatewayVerticle</main.verticle>
         <buildVersion>1.0.0-SNAPSHOT</buildVersion>
     </properties>
+
 
 </project>
