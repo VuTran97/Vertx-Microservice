@@ -11,24 +11,45 @@ import io.vertx.core.Handler;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.eventbus.ReplyException;
 import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.kafka.client.producer.KafkaProducer;
+import io.vertx.kafka.client.producer.KafkaProducerRecord;
+import io.vertx.kafka.client.producer.RecordMetadata;
+import io.vertx.kafka.client.serialization.JsonObjectSerializer;
 import io.vertx.servicediscovery.ServiceDiscovery;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Properties;
 
 public class ApiRouteVerticle extends AbstractVerticle {
+
+    private KafkaProducer<String, JsonObject> producer;
 
     private final DateTimeFormatter dtf = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private static final Logger logger = LoggerFactory.getLogger(ApiRouteVerticle.class);
     @Override
     public void start(){
+        //kafka config producer
+        Properties config = new Properties();
+        config.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        config.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class);
+        config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonObjectSerializer.class);
+        config.put(ProducerConfig.ACKS_CONFIG, "1");
+        producer = KafkaProducer.create(vertx, config);
+
+        producer.partitionsFor("user-topic1", done -> {
+            done.result().forEach(p -> logger.info("Partition: id={0}, topic={1}", p.getPartition(), p.getTopic()));
+        });
         ServiceDiscovery discovery = ServiceDiscovery.create(vertx);
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
@@ -69,6 +90,20 @@ public class ApiRouteVerticle extends AbstractVerticle {
         }).subscribe();
     }
 
+    private void sendKafkaMsg(JsonObject body) {
+        KafkaProducerRecord<String, JsonObject> record = KafkaProducerRecord.create("user-topic1", null, body);
+        producer.write(record, done -> {
+            if (done.succeeded()){
+                RecordMetadata recordMetadata = done.result();
+                logger.info("Record sent: msg={0}, destination={1}, partition={2}, offset={3}", record.value(), recordMetadata.getTopic(), recordMetadata.getPartition(), recordMetadata.getOffset());
+            }else{
+                Throwable t = done.cause();
+                logger.error("Error sent to topic: {0}", t.getMessage());
+            }
+        });
+
+    }
+
     private void deleteVersion(RoutingContext routingContext) {
         String userId = routingContext.pathParam("id");
         vertx.eventBus().send(EventAddress.DELETE_VERSION_BY_USER_ID.name(), userId, (Handler<AsyncResult<Message<String>>>) replyHandler -> defaultResponse(routingContext, replyHandler));
@@ -101,13 +136,18 @@ public class ApiRouteVerticle extends AbstractVerticle {
 
     private void defaultResponse(RoutingContext ctx, AsyncResult<Message<String>> responseHandler) {
         ctx.response().putHeader(HttpHeaders.CONTENT_TYPE, "application/json");
+        JsonObject body = new JsonObject();
+        System.out.println("sdfsdf: "+responseHandler.result());
         if (responseHandler.failed()) {
             ReplyException cause = (ReplyException) responseHandler.cause();
             ctx.fail(new VerticleException(cause, cause.failureCode()));
+            body.put("error", cause.getMessage());
         } else {
             final Message<String> result = responseHandler.result();
+            body.put("data", responseHandler.result().body());
             ctx.response().end(result.body());
         }
+        sendKafkaMsg(body);
     }
 
 }

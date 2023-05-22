@@ -5,12 +5,13 @@ import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
 import io.vertx.core.eventbus.Message;
 import io.vertx.core.json.JsonObject;
+import io.vertx.kafka.client.consumer.KafkaConsumer;
 
 public interface UserService {
 
     Handler<Message<Object>> getAll(Vertx vertx);
 
-    Handler<Message<JsonObject>> insert(Vertx vertx);
+    Handler<Message<JsonObject>> insert(Vertx vertx, KafkaConsumer<String, String> consumer);
 
     Handler<Message<String>> getById(Vertx vertx);
 

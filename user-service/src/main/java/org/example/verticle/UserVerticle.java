@@ -11,15 +11,22 @@ import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.web.Router;
+import io.vertx.kafka.client.consumer.KafkaConsumer;
 import io.vertx.servicediscovery.ServiceDiscovery;
+import org.apache.kafka.clients.consumer.ConsumerConfig;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.example.eventbus.UserEventBus;
 import org.example.repository.UserRepository;
 import org.example.service.UserService;
 import org.example.service.impl.UserServiceImpl;
 
+import java.util.Properties;
+
 public class UserVerticle extends AbstractVerticle {
 
   private static final Logger logger = LoggerFactory.getLogger(UserVerticle.class);
+
+  private KafkaConsumer<String, String> consumer;
 
   private ServiceDiscovery discovery;
 
@@ -31,13 +38,23 @@ public class UserVerticle extends AbstractVerticle {
    */
   @Override
   public void start(){
+    //kafka
+    Properties config = new Properties();
+    config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+    config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+    config.put(ConsumerConfig.GROUP_ID_CONFIG, "single-order");
+    config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+    config.put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "true");
+    consumer = KafkaConsumer.create(vertx, config);
+
     discovery = ServiceDiscovery.create(vertx);
     MongoClient client = createMongoClient(vertx);
     UserRepository userRepository = new UserRepository(client);
     UserEventBus userEventBus = new UserEventBus(userRepository);
     userService = new UserServiceImpl(userEventBus);
     vertx.eventBus().consumer(EventAddress.GET_ALL_USER.name(), userService.getAll(vertx));
-    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insert(vertx));
+    vertx.eventBus().consumer(EventAddress.INSERT_USER.name(), userService.insert(vertx, consumer));
     vertx.eventBus().consumer(EventAddress.GET_USER_BY_ID.name(), userService.getById(vertx));
     vertx.eventBus().consumer(EventAddress.UPDATE_USER.name(), userService.update(vertx));
     vertx.eventBus().consumer(EventAddress.DELETE_USER.name(), userService.delete(vertx));
