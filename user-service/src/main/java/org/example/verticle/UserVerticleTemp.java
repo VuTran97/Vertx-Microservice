@@ -22,7 +22,7 @@ public class UserVerticleTemp extends AbstractVerticle {
             routingContext.response().end("User service 3");
         });
         ServiceDiscoveryCommon serviceDiscovery = new ServiceDiscoveryCommon();
-        serviceDiscovery.publish(discovery, "user-service", "localhost", 8083, "user");
+        //serviceDiscovery.publish(discovery, "user-service", "localhost", 8083, "user");
         Completable.create(completableEmitter -> {
             vertx.createHttpServer().requestHandler(router).listen(8083, httpServerAsyncResult -> {
                 if(httpServerAsyncResult.succeeded()){

@@ -23,6 +23,11 @@ public class UserEventBus {
         this.userRepository = userRepository;
     }
 
+    /**
+     * this lamda function return type is message
+     * @param vertx
+     * @return
+     */
     public Handler<Message<Object>> getAll(Vertx vertx) {
         return handler -> {
             userRepository.getAll().flatMap(jsonObjects -> Observable.fromIterable(jsonObjects)

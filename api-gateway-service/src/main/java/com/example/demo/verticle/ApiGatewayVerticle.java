@@ -1,14 +1,16 @@
 package com.example.demo.verticle;
 
 import com.example.demo.util.loadbalance.WeightRoundRobin;
-import io.reactivex.Completable;
 import io.reactivex.Single;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.core.Future;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.client.HttpRequest;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.handler.BodyHandler;
 import io.vertx.servicediscovery.Record;
@@ -26,21 +28,19 @@ public class ApiGatewayVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(ApiGatewayVerticle.class);
 
     @Override
-    public void start() {
+    public void start(Future<Void> future) {
         discovery = ServiceDiscovery.create(vertx);
         Router router = Router.router(vertx);
         router.route().handler(BodyHandler.create());
         router.route("/api/*").handler(this::dispatchRequest);
-        Completable.create(completableEmitter -> {
-            vertx.createHttpServer().requestHandler(router).listen(8787, httpServerAsyncResult -> {
-                if(httpServerAsyncResult.succeeded()){
-                    logger.info("Server listening on port 8787...");
-                    completableEmitter.onComplete();
-                }else{
-                    completableEmitter.onError(httpServerAsyncResult.cause());
-                }
-            });
-        }).subscribe();
+        vertx.createHttpServer().requestHandler(router).listen(8787, httpServerAsyncResult -> {
+            if(httpServerAsyncResult.succeeded()){
+                logger.info("Server listening on port 8787...");
+                future.complete();
+            }else{
+                future.fail(httpServerAsyncResult.cause());
+            }
+        });
     }
 
     private void dispatchRequest(RoutingContext routingContext) {
@@ -88,18 +88,31 @@ public class ApiGatewayVerticle extends AbstractVerticle {
         });
     }
 
-    private void doDispatchWebClient(RoutingContext routingContext, String newPath, WebClient client) {
-        client.request(routingContext.request().method(), newPath)
-                .sendBuffer(routingContext.getBody(), res -> {
-                    if(res.succeeded()){
-                        routingContext.response()
-                                .putHeader("content-type", "application/json; charset=utf-8")
-                                .setStatusCode(res.result().statusCode())
-                                .end(res.result().body());
-                    }else{
-                        logger.error(res.cause().getMessage());
-                    }
-                });
+    private void doDispatchWebClient(RoutingContext routingContext, String newPath, WebClient webClient) {
+        HttpRequest<Buffer> request = webClient.request(routingContext.request().method(), newPath);
+        if(routingContext.getBody() != null){
+            request.sendBuffer(routingContext.getBody(), res -> {
+                if(res.succeeded()){
+                    routingContext.response()
+                            .putHeader("content-type", "application/json; charset=utf-8")
+                            .setStatusCode(res.result().statusCode())
+                            .end(res.result().body());
+                }else{
+                    logger.error(res.cause());
+                }
+            });
+        }else{
+            request.send(res -> {
+                if(res.succeeded()){
+                    routingContext.response()
+                            .putHeader("content-type", "application/json; charset=utf-8")
+                            .setStatusCode(res.result().statusCode())
+                            .end(res.result().body());
+                }
+                logger.error(res.cause());
+            });
+        }
+
     }
 
     private Single<List<Record>> getAllEndpoint(){

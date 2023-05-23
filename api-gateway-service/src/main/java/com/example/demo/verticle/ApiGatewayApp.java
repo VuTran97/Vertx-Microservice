@@ -14,11 +14,11 @@ public class ApiGatewayApp extends AbstractVerticle{
 
     @Override
     public void start(Future<Void> future) throws Exception {
-        deployHelper.deployHelper(UserVerticle.class.getName(), vertx)
-                .andThen(deployHelper.deployHelper(UserVerticleTemp.class.getName(), vertx))
-                .andThen(deployHelper.deployHelper(ApiRouteVerticle.class.getName(), vertx))
-                .andThen(deployHelper.deployHelper(ApiGatewayVerticle.class.getName(), vertx))
-                .andThen(deployHelper.deployHelper(UserVersionVerticle.class.getName(), vertx))
+        deployHelper.deployHelper(UserVersionVerticle.class.getName(), vertx)
+                .mergeWith(deployHelper.deployHelper(UserVerticle.class.getName(), vertx))
+                .mergeWith(deployHelper.deployHelper(UserVerticleTemp.class.getName(), vertx))
+                .mergeWith(deployHelper.deployHelper(ApiRouteVerticle.class.getName(), vertx))
+                .mergeWith(deployHelper.deployHelper(ApiGatewayVerticle.class.getName(), vertx))
                 .subscribe(() -> {
                     future.complete();
                 }, error -> {

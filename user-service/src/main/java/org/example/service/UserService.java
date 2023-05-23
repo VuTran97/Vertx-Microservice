@@ -11,7 +11,7 @@ public interface UserService {
 
     Handler<Message<Object>> getAll(Vertx vertx);
 
-    Handler<Message<JsonObject>> insert(Vertx vertx, KafkaConsumer<String, String> consumer);
+    Handler<Message<JsonObject>> insert(Vertx vertx);
 
     Handler<Message<String>> getById(Vertx vertx);
 

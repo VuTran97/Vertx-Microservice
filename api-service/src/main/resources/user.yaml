@@ -1,0 +1,119 @@
+openapi: "3.0.0"
+info:
+  version: 1.0.0
+  title: Swagger Petstore
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8081
+paths:
+  /user:
+    get:
+      summary: List all users
+      operationId: listUsers
+      tags:
+        - users
+      responses:
+        '200':
+          description: OK
+        '500':
+          description: Internal Server Error
+
+    post:
+      summary: Create new User
+      operationId: createUser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+                version:
+                  type: number
+                  format: float
+              required:
+                - version
+      tags:
+        - users
+      responses:
+        '201':
+          description: User created success
+        '400':
+          description: User already exists
+        '500':
+          description: Internal Server Error
+    put:
+      summary: Update User
+      operationId: updateUser
+      parameters:
+        - in: path
+          name: id
+          description: user id
+          schema:
+            type: string
+        - name: Id
+          in: query
+          schema:
+            type: string
+      tags:
+        - users
+      responses:
+        '201':
+          description: User updated success
+        '400':
+          description: Version of user already exists
+        '404':
+          description: User not found
+        '500':
+          description: Internal Server Error
+    delete:
+      summary: Delete User by Id
+      operationId: deleteUserById
+      parameters:
+        - in: path
+          name: id
+          description: user id
+          required: true
+          schema:
+            type: string
+        - name: Id
+          in: query
+          schema:
+            type: string
+      tags:
+        - users
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: User not found
+        '500':
+          description: Internal Server Error
+  /user/{id}:
+    get:
+      summary: Get User by Id
+      operationId: getUserById
+      parameters:
+        - in: path
+          name: id
+          description: user id
+          schema:
+            type: string
+        - name: Id
+          in: query
+          schema:
+            type: string
+      tags:
+        - users
+      responses:
+        '200':
+          description: OK
+        '404':
+          description: User not found
+        '500':
+          description: Internal Server Error
+
