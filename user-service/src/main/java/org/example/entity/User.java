@@ -1,7 +1,10 @@
 package org.example.entity;
 
+import com.example.demo.entity.UserVersion;
 import io.vertx.core.json.JsonObject;
 import org.example.converter.UserConverter;
+
+import java.util.List;
 
 public class User {
 
@@ -10,6 +13,8 @@ public class User {
   private String username;
 
   private String password;
+
+  private List<UserVersion> versions;
 
     public User(){
 
@@ -44,5 +49,13 @@ public class User {
 
   public void setId(String _id) {
     this._id = _id;
+  }
+
+  public List<UserVersion> getVersions() {
+    return versions;
+  }
+
+  public void setVersions(List<UserVersion> versions) {
+    this.versions = versions;
   }
 }

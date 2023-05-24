@@ -1,13 +1,15 @@
 package org.example.repository;
 
-import io.vertx.core.Handler;
-import io.vertx.core.eventbus.Message;
-import io.vertx.core.json.JsonArray;
+import com.example.demo.exception.CustomException;
+import io.reactivex.Completable;
+import io.reactivex.Single;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
 import io.vertx.ext.mongo.MongoClient;
 import org.example.verticle.UserVerticle;
+
+import java.util.List;
 
 public class UserRepository {
 
@@ -21,108 +23,103 @@ public class UserRepository {
         this.mongoClient = mongoClient;
     }
 
-    public Handler<Message<Object>> getAllUser() {
-        logger.debug("Start get all user by event bus...");
-        return handler -> {
+    public Single<List<JsonObject>> getAll(){
+        return Single.create(singleEmitter -> {
             mongoClient.find(COLLECTION_NAME, new JsonObject(), result -> {
                 if(result.succeeded()){
-                    handler.reply(new JsonArray(result.result()).encodePrettily());
+                    singleEmitter.onSuccess(result.result());
                 }else{
-                    handler.fail(500, "lookup failed");
+                    singleEmitter.onError(result.cause());
                 }
             });
-        };
+        });
     }
 
-    public Handler<Message<JsonObject>> insertUser() {
-        logger.debug("Start create user by event bus...");
-        return handler -> {
-            JsonObject body = handler.body();
+
+    public Single<JsonObject> insert(JsonObject body){
+        return Single.create(singleEmitter -> {
             JsonObject query = new JsonObject().put("username", body.getString("username"));
             mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
                 if(result.failed()){
-                    handler.fail(500, "lookup failed");
+                    singleEmitter.onError(new CustomException("An error occur when get user: "+body.getString("username")));
                     return;
                 }
                 JsonObject user = result.result();
                 if(user != null){
-                    handler.fail(404, "user already exists");
+                    singleEmitter.onError(new CustomException("user already exists"));
                 }else{
                     mongoClient.insert(COLLECTION_NAME, body, insert -> {
                         if(insert.failed()){
-                            handler.fail(500, "lookup failed");
+                            singleEmitter.onError(new CustomException("An error occur when insert user"));
                             return;
                         }
                         body.put("_id", insert.result());
-                        handler.reply(body.encode());
+                        singleEmitter.onSuccess(body);
                     });
                 }
             });
-        };
+        });
     }
 
-    public Handler<Message<String>> getUserById() {
-        return handler -> {
-            String id = handler.body();
+    public Single<JsonObject> getById(String id) {
+        return Single.create(singleEmitter -> {
             JsonObject query = new JsonObject().put("_id", id);
             mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
-                if(result.failed()){
-                    handler.fail(500, "lookup failed");
+                if (result.failed()) {
+                    singleEmitter.onError(new CustomException("An error occur when get user with id: " + id));
                     return;
                 }
                 JsonObject user = result.result();
-                if(user == null){
-                    handler.fail(404, "user with id: "+id+ " not exists");
-                }else{
-                    handler.reply(user.encode());
+                if (user == null) {
+                    singleEmitter.onError(new CustomException("user with id: " + id + " not exists"));
+                } else {
+                    singleEmitter.onSuccess(user);
                 }
             });
-        };
+        });
     }
 
-    public Handler<Message<JsonObject>> updateUser() {
-        return handler -> {
-            JsonObject body = handler.body();
+    public Single<JsonObject> update(JsonObject body){
+        return Single.create(singleEmitter -> {
             JsonObject query = new JsonObject().put("_id", body.getString("_id"));
             mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
                 if(result.failed()){
-                    handler.fail(500, "lookup failed");
+                    singleEmitter.onError(new CustomException("An error occur when get user with id: "+body.getString("_id")));
                     return;
                 }
                 JsonObject user = result.result();
                 if(user == null){
-                    handler.fail(404, "user with id: "+body.getString("_id")+ " not exists");
+                    singleEmitter.onError(new CustomException("user with id: "+body.getString("_id")+ " not exists"));
                 }
                 mongoClient.replaceDocuments(COLLECTION_NAME, query, body, resultUpdate -> {
-                   if(result.failed()){
-                       handler.fail(500, "update failed");
-                   }
-                   handler.reply(body.encode());
+                    if(result.failed()){
+                        singleEmitter.onError(new CustomException("An error occur when update user with id: "+body.getString("_id")));
+                    }
+                    singleEmitter.onSuccess(body);
                 });
             });
-        };
+        });
     }
 
-    public Handler<Message<String>> deleteUser(){
-        return handler -> {
-            String id = handler.body();
+    public Completable delete(String id){
+        return Completable.create(completableEmitter -> {
             JsonObject query = new JsonObject().put("_id", id);
             mongoClient.findOne(COLLECTION_NAME, query, null, result -> {
                 if(result.failed()){
-                    handler.fail(500, "lookup failed");
+                    completableEmitter.onError(new CustomException("An error occur when get user with id: "+id));
                     return;
                 }
                 JsonObject user = result.result();
                 if(user == null){
-                    handler.fail(404, "user with id: "+id+ " not exists");
+                    completableEmitter.onError(new CustomException("user with id: "+id+ " not exists"));
                 }
                 mongoClient.removeDocument(COLLECTION_NAME, query, resultDelete -> {
-                    if(result.failed()){
-                        handler.fail(500, "delete failed");
+                    if(resultDelete.failed()){
+                        completableEmitter.onError(new CustomException("An error occur when delete user"));
                     }
-                    handler.reply("delete success");
+                    completableEmitter.onComplete();
                 });
             });
-        };
+        });
     }
 }
