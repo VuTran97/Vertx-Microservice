@@ -36,6 +36,8 @@ paths:
                   type: number
                   format: float
               required:
+                - username
+                - password
                 - version
       tags:
         - users
@@ -49,16 +51,6 @@ paths:
     put:
       summary: Update User
       operationId: updateUser
-      parameters:
-        - in: path
-          name: id
-          description: user id
-          schema:
-            type: string
-        - name: Id
-          in: query
-          schema:
-            type: string
       tags:
         - users
       responses:

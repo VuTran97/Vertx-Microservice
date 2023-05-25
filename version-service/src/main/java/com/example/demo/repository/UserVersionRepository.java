@@ -44,6 +44,20 @@ public class UserVersionRepository {
         });
     }
 
+    public Single<JsonObject> getUserWithVersion(JsonObject user){
+        return Single.create(singleEmitter -> {
+            JsonObject query  = new JsonObject().put("userId", user.getString("_id"));
+            mongoClient.find(COLLECTION_NAME, query, result -> {
+                if (result.succeeded()){
+                    user.put("versions", result.result());
+                    singleEmitter.onSuccess(user);
+                }else{
+                    singleEmitter.onError(result.cause());
+                }
+            }) ;
+        });
+    }
+
     public Single<JsonObject> insert(JsonObject body){
         return Single.create(singleEmitter -> {
             mongoClient.insert(COLLECTION_NAME, body, result -> {

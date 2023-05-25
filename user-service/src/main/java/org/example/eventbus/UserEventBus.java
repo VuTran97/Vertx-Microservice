@@ -1,6 +1,7 @@
 package org.example.eventbus;
 
 import com.example.demo.enums.EventAddress;
+import com.example.demo.repository.UserVersionRepository;
 import io.reactivex.Observable;
 import io.reactivex.Single;
 import io.vertx.core.Handler;
@@ -19,8 +20,11 @@ public class UserEventBus {
 
     private UserRepository userRepository;
 
-    public UserEventBus(UserRepository userRepository) {
+    private UserVersionRepository userVersionRepository;
+
+    public UserEventBus(UserRepository userRepository, UserVersionRepository userVersionRepository) {
         this.userRepository = userRepository;
+        this.userVersionRepository = userVersionRepository;
     }
 
     /**
@@ -40,6 +44,21 @@ public class UserEventBus {
                             .doOnError(error -> handler.reply(error))
                           )).subscribe();
         };
+    }
+
+    public Single<List<JsonObject>> getAllEB(){
+        return Single.create(singleEmitter -> {
+           userRepository.getAll().flatMap(jsonObjects -> Observable.fromIterable(jsonObjects)
+                   .map(user -> userVersionRepository.getUserWithVersion(user))
+                   .flatMap(single -> single.toObservable())
+                           .toList()
+           ).subscribe(result -> {
+               singleEmitter.onSuccess(result);
+           }, error -> {
+               singleEmitter.onError(error);
+           });
+
+        });
     }
 
 

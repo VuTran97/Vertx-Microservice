@@ -5,6 +5,7 @@ import io.reactivex.Single;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.logging.Logger;
 import io.vertx.core.logging.LoggerFactory;
@@ -75,9 +76,8 @@ public class ApiGatewayVerticle extends AbstractVerticle {
             }
 
             if(record.isPresent()){
-                ServiceReference serviceReference = discovery.getReference(record.get());
-                WebClient webClient = serviceReference.getAs(WebClient.class);
-                doDispatchWebClient(routingContext, prefix, webClient);
+                HttpClient httpClient = discovery.getReference(record.get()).get();
+                doDispatch(routingContext, prefix, httpClient);
             }else{
                 routingContext.response().setStatusCode(400)
                         .putHeader("content-type", "application/json")
@@ -88,7 +88,8 @@ public class ApiGatewayVerticle extends AbstractVerticle {
         });
     }
 
-    private void doDispatchWebClient(RoutingContext routingContext, String newPath, WebClient webClient) {
+    private void doDispatch(RoutingContext routingContext, String newPath, HttpClient httpClient) {
+        WebClient webClient = WebClient.wrap(httpClient);
         HttpRequest<Buffer> request = webClient.request(routingContext.request().method(), newPath);
         if(routingContext.getBody() != null){
             request.sendBuffer(routingContext.getBody(), res -> {
@@ -112,7 +113,7 @@ public class ApiGatewayVerticle extends AbstractVerticle {
                 logger.error(res.cause());
             });
         }
-
+        ServiceDiscovery.releaseServiceObject(discovery, httpClient);
     }
 
     private Single<List<Record>> getAllEndpoint(){
